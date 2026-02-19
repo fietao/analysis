@@ -1,0 +1,8 @@
+all_stocks.csv
+ticker_data/
+output/
+failed_tickers.txt
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
