@@ -7,6 +7,7 @@ from src.config import DEV_MODE, DEV_TICKERS_LIMIT
 from src.analytics import analyze_stock_data
 from src.visualizer import create_visualizations, plot_risk_return_scatter
 from src.screening import generate_screening_report, save_screening_results
+from src.document_processor import process_filing
 from pathlib import Path
 
 def main():
@@ -22,6 +23,7 @@ def main():
         
     Path("ticker_data").mkdir(exist_ok=True)
     Path("output/charts").mkdir(parents=True, exist_ok=True)
+    Path("input/filings").mkdir(parents=True, exist_ok=True)
     
     # Download benchmark data (SPY)
     print("Downloading benchmark (SPY)...")
@@ -29,6 +31,7 @@ def main():
     
     # Metadata cache
     stock_info = {}
+    filing_insights = {}
     
     for ticker in tickers_to_run:
         print(f"Processing {ticker}...")
@@ -38,6 +41,11 @@ def main():
         if info:
             stock_info[ticker] = info
             
+        # Phase 7: Document Analysis
+        filing_data = process_filing(ticker)
+        if filing_data:
+            filing_insights[ticker] = filing_data
+
         csv_path = f"ticker_data/{ticker}.csv"
         
         if Path(csv_path).exists():
@@ -79,26 +87,48 @@ def main():
             if not ticker_df.empty:
                 metrics = analyze_stock_data(ticker_df)
                 metrics['ticker'] = ticker
-                all_metrics_list.append(metrics.copy())
                 
-                # Add market cap to metrics for printing
+                # Add market cap and fundamentals to metrics for screening and printing
                 if ticker in stock_info:
                     info = stock_info[ticker]
-                    print(f"\n{info.get('name', ticker)} ({ticker})")
-                    market_cap = info.get('market_cap')
-                    if market_cap:
-                        # Format market cap in Billions
-                        metrics['Market Cap (B)'] = market_cap / 1e9
+                    
+                    # Store raw info keys for screening.py
+                    metrics['market_cap'] = info.get('market_cap')
+                    metrics['forward_pe'] = info.get('forward_pe')
+                    metrics['dividend_yield'] = info.get('dividend_yield')
+                    metrics['profit_margins'] = info.get('profit_margins')
+                    metrics['revenue_growth'] = info.get('revenue_growth')
+
+                    # Prepare display versions for individual report
+                    if info.get('market_cap'):
+                        metrics['Market Cap (B)'] = info['market_cap'] / 1e9
+                    if info.get('forward_pe'):
+                        metrics['Forward PE'] = info['forward_pe']
+                    if info.get('dividend_yield'):
+                        metrics['Div Yield'] = info['dividend_yield']
+                    if info.get('profit_margins'):
+                        metrics['Profit Margin'] = info['profit_margins']
+                    if info.get('revenue_growth'):
+                        metrics['Rev Growth'] = info['revenue_growth']
+                
+                all_metrics_list.append(metrics.copy())
+                
+                # Set up display
+                if ticker in stock_info:
+                    print(f"\n{stock_info[ticker].get('name', ticker)} ({ticker})")
                 else:
                     print(f"\n{ticker}:")
                 
                 # Separate insights from raw metrics for cleaner printing
                 insights = metrics.pop('insights', [])
                 
+                # Hide internal/duplicate keys from printing
+                internal_keys = ['ticker', 'market_cap', 'forward_pe', 'dividend_yield', 'profit_margins', 'revenue_growth']
+                
                 for key, val in metrics.items():
-                    if val is not None and key != 'ticker':
+                    if val is not None and key not in internal_keys:
                         # Format logic
-                        if 'return' in key or key in ['volatility', 'max_drawdown']:
+                        if any(x in key for x in ['return', 'volatility', 'max_drawdown', 'Yield', 'Margin', 'Growth']):
                             print(f"  {key:25}: {val:.2%}")
                         elif 'Market Cap' in key:
                             print(f"  {key:25}: ${val:,.2f}B")
@@ -109,6 +139,13 @@ def main():
                     print(f"\n  Analyst Notes:")
                     for note in insights:
                         print(f"  - {note}")
+
+                # Display Filing Insights (Phase 7)
+                if ticker in filing_insights:
+                    print(f"\n  Filing Analysis ({filing_insights[ticker]['filename']}):")
+                    for section, content in filing_insights[ticker]['sections'].items():
+                        print(f"  [{section}]")
+                        print(f"    {content[:300]}...")
         
         # Final Summary Chart (Phase 4)
         plot_risk_return_scatter(all_metrics_list)

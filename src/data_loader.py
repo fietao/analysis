@@ -19,14 +19,24 @@ def download_stock_data(ticker, start_date, end_date):
 
 def get_stock_info(ticker):
     """
-    Fetches basic info for a ticker using yfinance.
+    Fetches basic info and fundamentals for a ticker using yfinance.
     """
     try:
         t = yf.Ticker(ticker)
         info = t.info
+        dividend_yield = info.get("dividendYield")
+        if dividend_yield is not None:
+            dividend_yield = dividend_yield / 100.0
+            
         return {
             "name": info.get("longName"),
-            "market_cap": info.get("marketCap")
+            "market_cap": info.get("marketCap"),
+            "forward_pe": info.get("forwardPE"),
+            "dividend_yield": dividend_yield,
+            "profit_margins": info.get("profitMargins"),
+            "revenue_growth": info.get("revenueGrowth"),
+            "debt_to_equity": info.get("debtToEquity"),
+            "return_on_equity": info.get("returnOnEquity")
         }
     except Exception as e:
         print(f"Error fetching info for {ticker}: {e}")

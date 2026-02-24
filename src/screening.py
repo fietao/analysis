@@ -47,7 +47,25 @@ def generate_screening_report(all_metrics, top_n=10):
         for _, row in top_ratio.iterrows():
             report.append(f"  {row['ticker']:<10}: {row['return_per_risk']:.2f}")
 
-    # 4. Filters (e.g., Growth stocks in uptrend)
+    # 4. Dividends (Highest Yield)
+    if 'dividend_yield' in df.columns:
+        report.append(f"\nTOP {top_n} HIGHEST DIVIDEND YIELD:")
+        top_div = df.sort_values(by='dividend_yield', ascending=False).head(top_n)
+        for _, row in top_div.iterrows():
+            val = row['dividend_yield']
+            if pd.notnull(val):
+                report.append(f"  {row['ticker']:<10}: {val:.2%}")
+
+    # 5. Profitability (Profit Margins)
+    if 'profit_margins' in df.columns:
+        report.append(f"\nTOP {top_n} MOST PROFITABLE (NET MARGINS):")
+        top_prof = df.sort_values(by='profit_margins', ascending=False).head(top_n)
+        for _, row in top_prof.iterrows():
+            val = row['profit_margins']
+            if pd.notnull(val):
+                report.append(f"  {row['ticker']:<10}: {val:.2%}")
+
+    # 6. Filters (e.g., Growth stocks in uptrend)
     report.append("\n" + "-"*60)
     report.append("SCREENING FILTERS:")
     
