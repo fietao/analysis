@@ -5,11 +5,13 @@ from src.config import TICKERS, start_date, end_date
 from src.data_loader import download_stock_data, get_stock_info
 from src.config import DEV_MODE, DEV_TICKERS_LIMIT
 from src.analytics import analyze_stock_data
+from src.visualizer import create_visualizations, plot_risk_return_scatter
 from pathlib import Path
 
 def main():
     all_data = []
     failed_tickers = []
+    all_metrics_list = [] # Store for scatter plot
     
     # Selection of tickers to run
     tickers_to_run = TICKERS
@@ -18,6 +20,11 @@ def main():
         print(f"Running in dev mode with {len(tickers_to_run)} tickers")
         
     Path("ticker_data").mkdir(exist_ok=True)
+    Path("output/charts").mkdir(parents=True, exist_ok=True)
+    
+    # Download benchmark data (SPY)
+    print("Downloading benchmark (SPY)...")
+    spy_df = download_stock_data("SPY", start_date, end_date)
     
     # Metadata cache
     stock_info = {}
@@ -36,16 +43,18 @@ def main():
             print(f"  Loading existing data...")
             df = pd.read_csv(csv_path)
             all_data.append(df)
-            continue
-            
-        df = download_stock_data(ticker, start_date, end_date)
-        
-        if df is not None: 
-            df.to_csv(csv_path, index=False)
-            all_data.append(df)
         else:
-            print(f"  Failed to download data.")
-            failed_tickers.append(ticker)
+            df = download_stock_data(ticker, start_date, end_date)
+            if df is not None: 
+                df.to_csv(csv_path, index=False)
+                all_data.append(df)
+            else:
+                print(f"  Failed to download data.")
+                failed_tickers.append(ticker)
+                continue
+        
+        # Generate Individual Charts (Phase 4)
+        create_visualizations(df, ticker, benchmark_df=spy_df)
             
     if failed_tickers:
         print(f"Failed to download data for {failed_tickers}")    
@@ -58,7 +67,7 @@ def main():
         combined_df.to_csv("all_stocks.csv", index=False)
         print("\nData saved to all_stocks.csv\n")
         
-        # --- PHASE 2: CORE ANALYTICS REPORT ---
+        # --- PHASE 2 & 3: ANALYTICS & INSIGHTS ---
         print("="*60)
         print(f"{'STOCK ANALYSIS REPORT':^60}")
         print("="*60)
@@ -68,6 +77,8 @@ def main():
             
             if not ticker_df.empty:
                 metrics = analyze_stock_data(ticker_df)
+                metrics['ticker'] = ticker
+                all_metrics_list.append(metrics.copy())
                 
                 # Add market cap to metrics for printing
                 if ticker in stock_info:
@@ -84,7 +95,7 @@ def main():
                 insights = metrics.pop('insights', [])
                 
                 for key, val in metrics.items():
-                    if val is not None:
+                    if val is not None and key != 'ticker':
                         # Format logic
                         if 'return' in key or key in ['volatility', 'max_drawdown']:
                             print(f"  {key:25}: {val:.2%}")
@@ -97,7 +108,12 @@ def main():
                     print(f"\n  Analyst Notes:")
                     for note in insights:
                         print(f"  - {note}")
+        
+        # Final Summary Chart (Phase 4)
+        plot_risk_return_scatter(all_metrics_list)
+        
         print("\n" + "="*60)
+        print(f"Charts saved in output/charts/")
     else:
         print("No data downloaded")
 
