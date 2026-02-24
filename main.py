@@ -6,6 +6,7 @@ from src.data_loader import download_stock_data, get_stock_info
 from src.config import DEV_MODE, DEV_TICKERS_LIMIT
 from src.analytics import analyze_stock_data
 from src.visualizer import create_visualizations, plot_risk_return_scatter
+from src.screening import generate_screening_report, save_screening_results
 from pathlib import Path
 
 def main():
@@ -111,6 +112,12 @@ def main():
         
         # Final Summary Chart (Phase 4)
         plot_risk_return_scatter(all_metrics_list)
+        
+        # --- PHASE 5: SCREENING & RANKING ---
+        screening_report = generate_screening_report(all_metrics_list)
+        print("\n" + screening_report)
+        
+        save_screening_results(all_metrics_list)
         
         print("\n" + "="*60)
         print(f"Charts saved in output/charts/")
