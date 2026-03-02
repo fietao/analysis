@@ -6,6 +6,7 @@ from src.config import TICKERS, start_date, end_date
 from src.data_loader import download_stock_data, get_stock_info
 from src.analytics import analyze_stock_data
 from src.screening import generate_screening_report
+from fastapi.responses import FileResponse
 
 app = FastAPI(title="Fiscal AI 2.0 API")
 
@@ -53,6 +54,32 @@ def get_stock_analysis(ticker: str):
 @app.get("/api/health")
 def health_check():
     return {"status": "online", "version": "2.0.0"}
+
+@app.get("/api/screening")
+def get_screening_data():
+    """
+    Returns the batch screening metrics as JSON.
+    Loads from output/screening_results.csv.
+    """
+    csv_path = Path("output/screening_results.csv")
+    if not csv_path.exists():
+        raise HTTPException(status_code=404, detail="Screening data not found. Please run backend processing first.")
+    
+    df = pd.read_csv(csv_path)
+    # Replace NaNs with None for JSON serialization
+    df = df.where(pd.notnull(df), None)
+    return {"data": df.to_dict(orient="records")}
+
+@app.get("/api/charts/{ticker}")
+def get_stock_chart(ticker: str):
+    """
+    Returns the Matplotlib chart as a static asset.
+    """
+    ticker = ticker.upper()
+    chart_path = Path(f"output/charts/{ticker}_analysis.png")
+    if not chart_path.exists():
+        raise HTTPException(status_code=404, detail="Chart not found")
+    return FileResponse(chart_path, media_type="image/png")
 
 if __name__ == "__main__":
     import uvicorn

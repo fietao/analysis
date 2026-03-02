@@ -1,17 +1,17 @@
 # Task Breakdown: Fiscal AI 2.0 Frontend
 
 ## Phase 8: API Bridge (The Backend)
-- [ ] Initialize FastAPI project structure
-- [ ] Create endpoint `/api/stocks` (returns ticker list)
-- [ ] Create endpoint `/api/analysis/{ticker}` (integrates with `analytics.py`)
-- [ ] Create endpoint `/api/screening` (integrates with `screening.py`)
-- [ ] Create endpoint for fetching Matplotlib charts as static assets
+- [x] Initialize FastAPI project structure
+- [x] Create endpoint `/api/stocks` (returns ticker list)
+- [x] Create endpoint `/api/analysis/{ticker}` (integrates with `analytics.py`)
+- [x] Create endpoint `/api/screening` (integrates with `screening.py`)
+- [x] Create endpoint for fetching Matplotlib charts as static assets
 
 ## Phase 9: Dashboard Core (UI Foundation)
-- [ ] Initialize Next.js project with Tailwind CSS
-- [ ] Setup "Premium Analytics" theme (Dark mode, Inter font)
-- [ ] Build Main Layout (Sidebar + Top Navigation)
-- [ ] Implement Ticker Search with autocomplete
+- [x] Initialize Next.js project with Tailwind CSS
+- [x] Setup "Premium Analytics" theme (Dark mode, Inter font)
+- [x] Build Main Layout (Sidebar + Top Navigation)
+- [x] Implement Ticker Search with autocomplete
 
 ## Phase 10: Stock Intelligence View
 - [ ] Create "Stock Overview" cards (Return, Volatility, PE)
