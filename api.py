@@ -68,7 +68,7 @@ def get_screening_data():
     df = pd.read_csv(csv_path)
     # Replace NaNs with None for JSON serialization
     df = df.where(pd.notnull(df), None)
-    return {"data": df.to_dict(orient="records")}
+    return {"results": df.to_dict(orient="records")}
 
 @app.get("/api/charts/{ticker}")
 def get_stock_chart(ticker: str):
