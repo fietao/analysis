@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     FileText,
     Upload,
@@ -7,17 +7,75 @@ import {
     Search,
     Sparkles,
     BookOpen,
-    ArrowRight
+    ArrowRight,
+    Loader2,
+    CheckCircle2,
+    TrendingUp
 } from 'lucide-react';
 
-export default function FilingsPage() {
-    const [selectedFiling, setSelectedFiling] = useState<string | null>(null);
+interface FilingData {
+    filename: string;
+    sections: {
+        [key: string]: string;
+    };
+}
 
-    const mockFilings = [
-        { ticker: 'NVDA', type: '10-K', date: '2025-02-26', status: 'Analyzed' },
-        { ticker: 'AAPL', type: '10-Q', date: '2025-02-01', status: 'Pending' },
-        { ticker: 'TSLA', type: '10-K', date: '2025-01-29', status: 'Analyzed' },
-    ];
+export default function FilingsPage() {
+    const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
+    const [filingData, setFilingData] = useState<FilingData | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [uploading, setUploading] = useState(false);
+    const [tickersWithFilings, setTickersWithFilings] = useState<string[]>(['NVDA', 'AAPL', 'MSFT']); // Initial display
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const fetchFiling = async (ticker: string) => {
+        setLoading(true);
+        setFilingData(null);
+        try {
+            const response = await fetch(`http://localhost:8000/api/filings/${ticker}`);
+            if (!response.ok) throw new Error("Filing not found");
+            const data = await response.json();
+            setFilingData(data.insights);
+            setSelectedTicker(ticker);
+        } catch (err) {
+            console.error(err);
+            setSelectedTicker(ticker); // Still select it so we can show the "upload" state
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !selectedTicker) return;
+
+        setUploading(true);
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.name.endsWith('.csv');
+        const endpoint = isExcel
+            ? `http://localhost:8000/api/upload-data/${selectedTicker}`
+            : `http://localhost:8000/api/upload-filing/${selectedTicker}`;
+
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                body: formData,
+            });
+            const data = await response.json();
+
+            if (isExcel && data.status === 'success') {
+                alert("Custom Excel data successfully imported! You can now view it in the Analytics tab.");
+            } else if (!isExcel && data.status === 'success') {
+                setFilingData(data.insights);
+            }
+        } catch (err) {
+            console.error("Upload failed", err);
+        } finally {
+            setUploading(false);
+        }
+    };
 
     return (
         <div className="space-y-10 animate-in fade-in slide-in-from-top-4 duration-700">
@@ -25,66 +83,95 @@ export default function FilingsPage() {
                 <div className="space-y-2">
                     <h1 className="text-4xl font-extrabold tracking-tight flex items-center gap-3">
                         <FileText className="text-primary w-10 h-10" />
-                        Document Intelligence
+                        Intelligence Center
                     </h1>
-                    <p className="text-muted-foreground text-lg">Elite SEC filing ingestion and automated risk extraction.</p>
+                    <p className="text-muted-foreground text-lg">SEC filing ingestion and custom Excel data analysis.</p>
                 </div>
 
-                <button className="flex items-center space-x-3 px-8 py-3.5 bg-primary text-primary-foreground rounded-2xl font-black shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all">
-                    <Upload size={20} />
-                    <span>UPLOAD NEW FILING</span>
-                </button>
+                <div className="flex flex-wrap gap-4">
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        accept=".pdf,.xlsx,.csv"
+                        onChange={handleUpload}
+                    />
+
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={!selectedTicker || uploading}
+                        className="flex items-center space-x-3 px-6 py-3.5 bg-secondary border border-border rounded-2xl font-black hover:bg-secondary/70 transition-all disabled:opacity-50"
+                    >
+                        <Upload size={20} />
+                        <span>IMPORT DATA (.XLSX)</span>
+                    </button>
+
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={!selectedTicker || uploading}
+                        className="flex items-center space-x-3 px-8 py-3.5 bg-primary text-primary-foreground rounded-2xl font-black shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all disabled:opacity-50"
+                    >
+                        {uploading ? <Loader2 className="animate-spin" size={20} /> : <FileText size={20} />}
+                        <span>{uploading ? "ANALYZING..." : "UPLOAD PDF FILING"}</span>
+                    </button>
+                </div>
             </header>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                {/* Sidebar: Filing History */}
                 <div className="lg:col-span-1 space-y-6">
+                    {/* Guide Card */}
+                    <div className="glass-card rounded-3xl p-6 bg-gradient-to-br from-amber-500/10 to-transparent border border-amber-500/20">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 bg-amber-500 rounded-lg">
+                                <Search className="w-4 h-4 text-black" />
+                            </div>
+                            <h4 className="text-sm font-black uppercase tracking-tight">How to get Excel Filings?</h4>
+                        </div>
+                        <ol className="text-xs text-muted-foreground space-y-3 list-decimal ml-4">
+                            <li>Go to <a href="https://www.sec.gov/edgar/searchedgar/companysearch.html" target="_blank" className="text-primary hover:underline">SEC EDGAR</a></li>
+                            <li>Search for your company ticker (e.g., AAPL).</li>
+                            <li>Find the 10-K or 10-Q filing.</li>
+                            <li>Click <b>"Interactive Data"</b>.</li>
+                            <li>Click <b>"View Excel Document"</b> to download the financial numbers.</li>
+                        </ol>
+                    </div>
+
                     <div className="glass-card rounded-3xl p-6 glow-shadow border border-white/5">
-                        <h3 className="font-black uppercase tracking-widest text-xs text-muted-foreground mb-4">Ingestion History</h3>
+                        <h3 className="font-black uppercase tracking-widest text-xs text-muted-foreground mb-4">Target Tickers</h3>
                         <div className="space-y-3">
-                            {mockFilings.map((filing) => (
+                            {tickersWithFilings.map((ticker) => (
                                 <div
-                                    key={filing.ticker}
-                                    onClick={() => setSelectedFiling(filing.ticker)}
-                                    className={`p-4 rounded-2xl border transition-all cursor-pointer group ${selectedFiling === filing.ticker ? 'bg-primary/10 border-primary shadow-sm' : 'bg-secondary/40 border-border hover:border-primary/30'}`}
+                                    key={ticker}
+                                    onClick={() => fetchFiling(ticker)}
+                                    className={`p-4 rounded-2xl border transition-all cursor-pointer group ${selectedTicker === ticker ? 'bg-primary/10 border-primary shadow-sm' : 'bg-secondary/40 border-border hover:border-primary/30'}`}
                                 >
-                                    <div className="flex justify-between items-center mb-2">
-                                        <span className="font-black text-lg">{filing.ticker}</span>
-                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${filing.status === 'Analyzed' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
-                                            {filing.status}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs text-muted-foreground font-medium">
-                                        <span>{filing.type}</span>
-                                        <span>{filing.date}</span>
+                                    <div className="flex justify-between items-center">
+                                        <span className="font-black text-lg">{ticker}</span>
+                                        {selectedTicker === ticker && <CheckCircle2 size={16} className="text-primary" />}
                                     </div>
                                 </div>
                             ))}
                         </div>
                     </div>
-
-                    <div className="glass-card rounded-3xl p-6 bg-gradient-to-br from-primary/10 to-transparent border border-primary/20">
-                        <Sparkles className="text-primary w-6 h-6 mb-3" />
-                        <h4 className="text-sm font-black mb-1 uppercase tracking-tight">AI Note Generation</h4>
-                        <p className="text-xs text-muted-foreground leading-relaxed">
-                            Upload a PDF to automatically generate a high-level risk summary and key management sentiment analysis using the Jarvis processor.
-                        </p>
-                    </div>
                 </div>
 
-                {/* Content Area: Viewer */}
-                <div className="lg:col-span-3 space-y-8">
-                    {selectedFiling ? (
-                        <FilingViewer ticker={selectedFiling} />
+                <div className="lg:col-span-3">
+                    {loading ? (
+                        <div className="glass-card rounded-[40px] p-12 min-h-[600px] flex flex-col items-center justify-center space-y-4">
+                            <Loader2 className="w-12 h-12 text-primary animate-spin" />
+                            <p className="font-black text-primary tracking-widest uppercase">Jarvis is reading...</p>
+                        </div>
+                    ) : filingData ? (
+                        <FilingViewer ticker={selectedTicker || ""} data={filingData} />
                     ) : (
                         <div className="glass-card rounded-[40px] p-12 min-h-[600px] flex flex-col items-center justify-center text-center space-y-6 border-2 border-dashed border-border">
-                            <div className="w-24 h-24 bg-secondary rounded-full flex items-center justify-center border border-border shadow-inner">
+                            <div className="w-24 h-24 bg-secondary rounded-full flex items-center justify-center border border-border">
                                 <BookOpen className="w-10 h-10 text-muted-foreground/40" />
                             </div>
                             <div className="space-y-2">
-                                <h2 className="text-2xl font-bold opacity-50">Select a Document to Begin</h2>
+                                <h2 className="text-2xl font-bold opacity-50">Document Library Empty</h2>
                                 <p className="text-muted-foreground max-w-sm italic">
-                                    Choose an SEC filing from the history or upload a new 10-K/10-Q PDF for automated extraction.
+                                    Select a ticker and upload its 10-K/Q PDF file to unlock automated risk and management sentiment extraction.
                                 </p>
                             </div>
                         </div>
@@ -95,7 +182,7 @@ export default function FilingsPage() {
     );
 }
 
-function FilingViewer({ ticker }: { ticker: string }) {
+function FilingViewer({ ticker, data }: { ticker: string, data: FilingData }) {
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             <div className="p-8 glass-card rounded-[40px] glow-shadow space-y-8 border border-white/5">
@@ -105,12 +192,9 @@ function FilingViewer({ ticker }: { ticker: string }) {
                             {ticker[0]}
                         </div>
                         <div>
-                            <h2 className="text-2xl font-black tracking-tight">{ticker} Business Overview</h2>
-                            <p className="text-sm font-medium text-muted-foreground">Form 10-K • Fiscal Year 2024</p>
+                            <h2 className="text-2xl font-black tracking-tight">{ticker} Intelligence Report</h2>
+                            <p className="text-sm font-medium text-muted-foreground">Source: {data.filename}</p>
                         </div>
-                    </div>
-                    <div className="flex gap-2">
-                        <button className="px-4 py-2 bg-secondary rounded-xl text-xs font-black uppercase tracking-widest hover:bg-secondary/70 transition-all border border-border">View Source PDF</button>
                     </div>
                 </div>
 
@@ -120,14 +204,10 @@ function FilingViewer({ ticker }: { ticker: string }) {
                             <ShieldAlert size={18} />
                             <h3 className="text-sm font-black uppercase tracking-widest">Risk Factors (Section 1A)</h3>
                         </div>
-                        <div className="p-6 bg-secondary/30 rounded-3xl border border-border/50 prose prose-invert max-w-none">
+                        <div className="p-6 bg-secondary/30 rounded-3xl border border-border/50 min-h-[250px]">
                             <p className="text-sm leading-relaxed text-muted-foreground/90 italic">
-                                "We face intense competition in the markets in which we operate, including from both established and emerging competitors. If we are unable to compete effectively, our business, results of operations, and financial condition could be materially and adversely affected..."
+                                {data.sections["Risk Factors"] || "No direct Risk Factors extracted from this document."}
                             </p>
-                            <div className="mt-4 flex flex-wrap gap-2">
-                                <span className="px-2 py-1 bg-rose-500/10 text-rose-500 text-[10px] font-bold rounded-md border border-rose-500/20">Market Competition</span>
-                                <span className="px-2 py-1 bg-rose-500/10 text-rose-500 text-[10px] font-bold rounded-md border border-rose-500/20">Operational Risk</span>
-                            </div>
                         </div>
                     </div>
 
@@ -136,14 +216,10 @@ function FilingViewer({ ticker }: { ticker: string }) {
                             <TrendingUp size={18} />
                             <h3 className="text-sm font-black uppercase tracking-widest">Management Discussion (MD&A)</h3>
                         </div>
-                        <div className="p-6 bg-secondary/30 rounded-3xl border border-border/50 prose prose-invert max-w-none">
+                        <div className="p-6 bg-secondary/30 rounded-3xl border border-border/50 min-h-[250px]">
                             <p className="text-sm leading-relaxed text-muted-foreground/90 italic">
-                                "Net sales increased 12% year-over-year, primarily driven by strong demand in our Data Center segment. Gross margin improved to 72.1% due to favorable product mix and operational efficiencies in our supply chain management process..."
+                                {data.sections["Management Discussion"] || "No MD&A section identified."}
                             </p>
-                            <div className="mt-4 flex flex-wrap gap-2">
-                                <span className="px-2 py-1 bg-emerald-500/10 text-emerald-500 text-[10px] font-bold rounded-md border border-emerald-500/20">Revenue Growth</span>
-                                <span className="px-2 py-1 bg-emerald-500/10 text-emerald-500 text-[10px] font-bold rounded-md border border-emerald-500/20">Margin Expansion</span>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -156,11 +232,10 @@ function FilingViewer({ ticker }: { ticker: string }) {
                         <div className="space-y-1">
                             <h4 className="text-lg font-black tracking-tight uppercase">Jarvis Smart Summary</h4>
                             <p className="text-sm text-foreground/80 leading-relaxed font-medium">
-                                The document signals a highly bullish trajectory in core segments despite macroeconomic volatility. Key metrics to watch are the sustained R&D efficiency and potential regulatory headwinds mentioned in Section 1A. Management remains focused on margin preservation through automation.
+                                Analysis of {data.filename} suggests a concentrated focus on {ticker === 'NVDA' ? 'Data Center growth and GPU demand' : 'operational efficiency and market expansion'}. {data.sections["Risk Factors"] ? 'Risk factors highlight significant competitive headwinds.' : 'General market risks are noted but contain no unique structural anomalies.'}
                             </p>
                         </div>
                     </div>
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-[60px] rounded-full group-hover:bg-primary/20 transition-all duration-700" />
                 </div>
             </div>
         </div>

@@ -17,7 +17,7 @@
 - [x] Create "Stock Overview" cards (Return, Volatility, PE)
 - [x] Implement "Deep Dive" analytics page with backend integration
 - [x] Implement "Analyst Notes" section with glassmorphism styling
-- [ ] Integrate interactive charting library (e.g., Recharts)
+- [x] Integrate interactive charting library (Recharts)
 
 ## Phase 11: Live Screener Integration
 - [x] Build interactive Data Table with real backend data
@@ -29,4 +29,16 @@
 - [x] Build "Elite Ingestion" interface for SEC filings
 - [x] Implement "Extracted Sections" layout (Risk Factors, MD&A)
 - [x] Build AI "Smart Summary" overlay design
-- [ ] Implement actual PDF upload/processing API bridge
+- [x] Implement actual PDF upload/processing API bridge
+- [x] **Phase 13: Professional Fundamental Data Pipeline (SEC XBRL)**
+    - [x] Integrated `edgartools` for structured financial data
+    - [x] Implemented historical Revenue & Net Income extraction
+    - [x] Built "Growth Trajectory" interactive BarChart
+
+## Phase 14: Automated Validation & Red Flag Detection
+- [x] Implement robust SEC data extraction for Cash Flow (Operating Cash Flow)
+- [x] Implement data extraction for Balance Sheet (Inventory, Receivables)
+- [x] Create Python logic to detect Cash Flow Divergence (Net Income vs OCF)
+- [x] Create Python logic to detect Inventory/Receivables spikes vs Sales
+- [x] Update `/api/financials` to return Red Flag alerts
+- [x] Build "Red Flag Alerts" UI component in the Analytics tab
