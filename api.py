@@ -8,7 +8,7 @@ from src.analytics import analyze_stock_data
 from src.screening import generate_screening_report
 from fastapi.responses import FileResponse
 
-app = FastAPI(title="Fiscal AI 2.0 API")
+app = FastAPI(title="Jarvis API")
 
 # Enable CORS for Next.js frontend
 app.add_middleware(

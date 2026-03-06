@@ -7,7 +7,7 @@ import TopNav from "@/components/TopNav";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Fiscal AI 2.0 | Advanced Analytics",
+  title: "Jarvis | Advanced Analytics",
   description: "Elite Financial Analysis Engine",
 };
 

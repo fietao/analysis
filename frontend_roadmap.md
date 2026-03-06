@@ -1,4 +1,4 @@
-# Task Breakdown: Fiscal AI 2.0 Frontend
+# Task Breakdown: Jarvis Frontend
 
 ## Phase 8: API Bridge (The Backend)
 - [x] Initialize FastAPI project structure

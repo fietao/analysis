@@ -1,6 +1,6 @@
-# Fiscal AI 2.0 🚀
+# Jarvis 🚀
 
-**Fiscal AI 2.0** is an elite, modular stock analysis engine designed to transform raw financial data into actionable analyst insights. It combines high-performance Python analytics with a modern, premium web dashboard.
+**Jarvis** is an elite, modular stock analysis engine designed to transform raw financial data into actionable analyst insights. It combines high-performance Python analytics with a modern, premium web dashboard.
 
 ---
 

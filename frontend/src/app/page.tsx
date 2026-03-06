@@ -11,7 +11,7 @@ export default function Dashboard() {
     <div className="space-y-10 animate-in fade-in duration-500">
       <header className="flex flex-col space-y-2">
         <h1 className="text-4xl font-extrabold tracking-tight">Market Dashboard</h1>
-        <p className="text-muted-foreground text-lg">Real-time analysis from your premium Fiscal engine.</p>
+        <p className="text-muted-foreground text-lg">Real-time analysis from your premium Jarvis engine.</p>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

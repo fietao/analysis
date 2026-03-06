@@ -26,7 +26,7 @@ const Sidebar = () => {
                     <Zap className="text-white w-6 h-6" />
                 </div>
                 <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-primary to-emerald-400 bg-clip-text text-transparent">
-                    FISCAL AI 2.0
+                    JARVIS
                 </span>
             </div>
 
