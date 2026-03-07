@@ -88,9 +88,9 @@ Open [http://localhost:3000](http://localhost:3000) to view the dashboard.
 - [x] Phase 7: Document Ingestion
 - [x] Phase 8: API Bridge
 - [x] Phase 9: UI Foundation
-- [ ] Phase 10: Interactive Charts
-- [ ] Phase 11: Screening Hub
-- [ ] Phase 12: AI Summary Integration
+- [x] Phase 10: Interactive Charts
+- [x] Phase 11: Screening Hub
+- [x] Phase 12: AI Summary Integration
 
 ---
 

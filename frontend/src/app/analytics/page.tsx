@@ -10,7 +10,10 @@ import {
     RefreshCcw,
     Zap,
     BarChart3,
-    Calendar
+    Calendar,
+    Target,
+    Scale,
+    DollarSign
 } from 'lucide-react';
 import {
     ResponsiveContainer,
@@ -73,6 +76,7 @@ function AnalyticsContent() {
     const [chartData, setChartData] = useState<ChartPoint[]>([]);
     const [financialTrends, setFinancialTrends] = useState<FinancialTrend[]>([]);
     const [financialRedFlags, setFinancialRedFlags] = useState<any[]>([]);
+    const [valuation, setValuation] = useState<any | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -123,6 +127,7 @@ function AnalyticsContent() {
             const result = await response.json();
             setFinancialTrends(result.trends);
             setFinancialRedFlags(result.red_flags || []);
+            setValuation(result.valuation || null);
         } catch (err) {
             console.error("Financials fetch error:", err);
         }
@@ -476,6 +481,52 @@ function AnalyticsContent() {
                     </div>
                 </div>
             </div>
+
+            {/* Advanced Valuation Section */}
+            {valuation && (
+                <div className="glass-card rounded-3xl p-8 glow-shadow space-y-6 border border-emerald-500/20">
+                    <div className="flex items-center space-x-3 pb-4 border-b border-border/50">
+                        <div className="p-2 bg-emerald-500/10 rounded-lg">
+                            <Scale className="w-6 h-6 text-emerald-500" />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-extrabold tracking-tight uppercase text-emerald-500">Intrinsic Value Analysis</h3>
+                            <p className="text-xs font-bold text-muted-foreground mt-1 tracking-widest uppercase">Discounted Cash Flow (DCF) Model</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="p-5 rounded-2xl bg-secondary/30 border border-border/50 text-center">
+                            <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-1">Current Price</p>
+                            <p className="text-2xl font-black">${valuation.current_price?.toFixed(2)}</p>
+                        </div>
+                        <div className="p-5 rounded-2xl bg-primary/10 border border-primary/20 text-center relative overflow-hidden group">
+                            <div className="absolute inset-0 bg-primary/5 group-hover:bg-primary/10 transition-colors" />
+                            <p className="text-[10px] uppercase tracking-widest text-primary font-bold mb-1 relative z-10">Intrinsic Value</p>
+                            <p className="text-3xl font-black text-primary relative z-10">${valuation.intrinsic_value?.toFixed(2)}</p>
+                        </div>
+                        <div className={`p-5 rounded-2xl border text-center ${valuation.margin_of_safety > 0 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-rose-500/10 border-rose-500/20 text-rose-500'}`}>
+                            <p className="text-[10px] uppercase tracking-widest font-bold mb-1">Margin of Safety</p>
+                            <p className="text-2xl font-black">{(valuation.margin_of_safety * 100).toFixed(2)}%</p>
+                            <p className="text-[9px] uppercase font-bold mt-1 opacity-80">{valuation.margin_of_safety > 0 ? 'Undervalued' : 'Overvalued'}</p>
+                        </div>
+                        <div className="p-5 rounded-2xl bg-secondary/30 border border-border/50 text-center text-left flex flex-col justify-center space-y-2">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] tracking-widest text-muted-foreground font-bold uppercase">WACC</span>
+                                <span className="font-mono text-sm font-bold">{(valuation.wacc * 100).toFixed(2)}%</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] tracking-widest text-muted-foreground font-bold uppercase">Proj. Growth</span>
+                                <span className="font-mono text-sm font-bold">{(valuation.projected_growth_rate * 100).toFixed(2)}%</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] tracking-widest text-muted-foreground font-bold uppercase">Term Growth</span>
+                                <span className="font-mono text-sm font-bold">{(valuation.terminal_growth_rate * 100).toFixed(2)}%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Red Flags Section */}
             <div className="lg:col-span-3 glass-card rounded-3xl p-8 glow-shadow border border-rose-500/20">

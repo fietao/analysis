@@ -71,10 +71,19 @@ def get_historical_financials(ticker: str, limit: int = 5) -> Optional[Dict]:
         import yfinance as yf
         try:
             yf_ticker = yf.Ticker(ticker)
-            beta = yf_ticker.info.get('beta', 1.1)
+            info = yf_ticker.info
+            beta = info.get('beta', 1.1)
             if beta is None: beta = 1.1
+            shares_out = info.get('sharesOutstanding', 0)
+            total_debt = info.get('totalDebt', 0)
+            total_cash = info.get('totalCash', 0)
+            current_price = info.get('currentPrice') or info.get('regularMarketPrice', 0)
         except:
             beta = 1.1
+            shares_out = 0
+            total_debt = 0
+            total_cash = 0
+            current_price = 0
             
         # Simplified WACC: Cost of Equity = Risk Free (4.0%) + Beta * ERP (5.5%)
         # Ignoring debt for simple proxy, so WACC ~ Ke
@@ -92,6 +101,66 @@ def get_historical_financials(ticker: str, limit: int = 5) -> Optional[Dict]:
                     t['roic'] = 0.0
             else:
                 t['roic'] = 0.0
+                
+        # Advanced Valuation (DCF Modeling)
+        valuation = None
+        if len(trend_list) > 0 and shares_out > 0 and current_price > 0:
+            latest = trend_list[-1]
+            ocf = latest.get('operating_cash_flow', 0)
+            
+            if ocf > 0:
+                fcf = ocf * 0.8 # Crude proxy for FCF: OCF - CapEx
+                
+                # Growth rate: average of last up to 3 years revenue growth, capped at 15% and floored at 2%
+                growth_rates = []
+                for i in range(1, min(4, len(trend_list))):
+                    prev_idx = -(i+1)
+                    curr_idx = -i
+                    if len(trend_list) >= abs(prev_idx):
+                        prev_rev = trend_list[prev_idx].get('revenue', 1)
+                        curr_rev = trend_list[curr_idx].get('revenue', 1)
+                        if prev_rev > 0:
+                            growth_rates.append((curr_rev - prev_rev) / prev_rev)
+                
+                avg_growth = sum(growth_rates) / len(growth_rates) if growth_rates else 0.05
+                proj_growth = max(0.02, min(0.15, avg_growth))
+                
+                term_growth = 0.025 # 2.5% perpetual growth
+                discount_rate = wacc
+                
+                # Project 5 years
+                discounted_fcfs = []
+                current_fcf = fcf
+                for i in range(1, 6):
+                    current_fcf *= (1 + proj_growth)
+                    pv_fcf = current_fcf / ((1 + discount_rate) ** i)
+                    discounted_fcfs.append(pv_fcf)
+                
+                sum_pv_fcfs = sum(discounted_fcfs)
+                
+                # Terminal Value
+                terminal_value = (current_fcf * (1 + term_growth)) / max(0.001, (discount_rate - term_growth))
+                pv_tv = terminal_value / ((1 + discount_rate) ** 5)
+                
+                enterprise_value = sum_pv_fcfs + pv_tv
+                equity_value = enterprise_value + total_cash - total_debt
+                
+                intrinsic_value = equity_value / shares_out
+                
+                margin_of_safety = (intrinsic_value - current_price) / current_price
+                
+                valuation = {
+                    "fcf": fcf,
+                    "wacc": wacc,
+                    "projected_growth_rate": proj_growth,
+                    "terminal_growth_rate": term_growth,
+                    "enterprise_value": enterprise_value,
+                    "equity_value": equity_value,
+                    "shares_outstanding": shares_out,
+                    "intrinsic_value": intrinsic_value,
+                    "current_price": current_price,
+                    "margin_of_safety": margin_of_safety
+                }
         
         # Red Flag Detection Logic
         red_flags = []
@@ -140,7 +209,8 @@ def get_historical_financials(ticker: str, limit: int = 5) -> Optional[Dict]:
             "company_name": company.name,
             "cik": company.cik,
             "trends": trend_list,
-            "red_flags": red_flags
+            "red_flags": red_flags,
+            "valuation": valuation
         }
         
     except Exception as e:

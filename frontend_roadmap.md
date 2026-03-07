@@ -42,3 +42,9 @@
 - [x] Create Python logic to detect Inventory/Receivables spikes vs Sales
 - [x] Update `/api/financials` to return Red Flag alerts
 - [x] Build "Red Flag Alerts" UI component in the Analytics tab
+
+## Phase 15: Advanced Valuation (DCF Modeling)
+- [x] Create Python DCF model logic using OCF, WACC, and Growth Rates
+- [x] Add `/api/valuation` endpoint or include in `/api/financials`
+- [x] Build Intrinsic Value UI Component
+- [x] Display Margin of Safety visually (Current Price vs. Intrinsic Value)
