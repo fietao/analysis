@@ -8,9 +8,12 @@ import {
     Download,
     Filter,
     Activity,
-    BarChart3
+    BarChart3,
+    RefreshCw
 } from 'lucide-react';
 import Link from 'next/link';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface StockMetric {
     ticker: string;
@@ -38,6 +41,7 @@ export default function ScreenerPage() {
         direction: 'desc'
     });
     const [searchQuery, setSearchQuery] = useState('');
+    const [refreshing, setRefreshing] = useState(false);
 
     useEffect(() => {
         fetchScreenerData();
@@ -45,14 +49,37 @@ export default function ScreenerPage() {
 
     const fetchScreenerData = async () => {
         try {
-            const response = await fetch('http://localhost:8000/api/screening');
-            if (!response.ok) throw new Error('Failed to fetch screening data');
+            setError(null);
+            const response = await fetch(`${API_BASE}/api/screening`);
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.detail || 'Failed to fetch screening data');
+            }
+            const result = await response.json();
+            setData(result.results || []);
+        } catch (err: any) {
+            setError(err.message);
+            setData([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const refreshWithLiveData = async () => {
+        setRefreshing(true);
+        setError(null);
+        try {
+            const response = await fetch(`${API_BASE}/api/screening/refresh`, { method: 'POST' });
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.detail || 'Refresh failed');
+            }
             const result = await response.json();
             setData(result.results || []);
         } catch (err: any) {
             setError(err.message);
         } finally {
-            setLoading(false);
+            setRefreshing(false);
         }
     };
 
@@ -74,11 +101,12 @@ export default function ScreenerPage() {
         item.ticker.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    if (loading) {
+    if (loading && data.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
                 <Activity className="w-12 h-12 text-primary animate-spin" />
-                <p className="text-lg font-bold tracking-widest text-primary animate-pulse">GENERATING MARKET SCAN...</p>
+                <p className="text-lg font-bold tracking-widest text-primary animate-pulse">LOADING...</p>
+                <p className="text-sm text-muted-foreground">No screening data yet? Click &quot;Refresh with live data&quot; on the Screener to fetch.</p>
             </div>
         );
     }
@@ -92,6 +120,14 @@ export default function ScreenerPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-4">
+                    <button
+                        onClick={refreshWithLiveData}
+                        disabled={refreshing}
+                        className="flex items-center space-x-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-500 disabled:opacity-50 transition-all"
+                    >
+                        <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
+                        <span>{refreshing ? 'Fetching live data…' : 'Refresh with live data'}</span>
+                    </button>
                     <div className="relative group">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                         <input
@@ -113,9 +149,23 @@ export default function ScreenerPage() {
                 </div>
             </header>
 
+            {error && (
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-sm flex flex-wrap items-center justify-between gap-4">
+                    <span>{error}</span>
+                    <button
+                        onClick={refreshWithLiveData}
+                        disabled={refreshing}
+                        className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-500 disabled:opacity-50"
+                    >
+                        <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+                        {refreshing ? 'Fetching…' : 'Refresh with live data'}
+                    </button>
+                </div>
+            )}
+
             {/* Top Performers Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {data.sort((a, b) => (b["1Y Return"] - a["1Y Return"])).slice(0, 3).map((stock, i) => (
+                {data.sort((a, b) => ((b["1Y Return"] ?? 0) - (a["1Y Return"] ?? 0))).slice(0, 3).map((stock, i) => (
                     <Link key={stock.ticker} href={`/analytics?ticker=${stock.ticker}`}>
                         <div className={`glass-card p-6 rounded-3xl border-l-4 ${i === 0 ? 'border-emerald-500' : 'border-primary/50'} hover:scale-[1.02] transition-all cursor-pointer group`}>
                             <div className="flex justify-between items-center mb-4">

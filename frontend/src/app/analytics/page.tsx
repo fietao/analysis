@@ -76,19 +76,22 @@ function AnalyticsContent() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
     useEffect(() => {
         if (ticker) {
-            fetchData(ticker);
-            fetchChartData(ticker);
+            fetchData(ticker, false);
+            fetchChartData(ticker, false);
             fetchFinancials(ticker);
         }
     }, [ticker]);
 
-    const fetchData = async (symbol: string) => {
+    const fetchData = async (symbol: string, forceRefresh = false) => {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch(`http://localhost:8000/api/analysis/${symbol}`);
+            const url = `${API_BASE}/api/analysis/${symbol}${forceRefresh ? '?refresh=true' : ''}`;
+            const response = await fetch(url);
             if (!response.ok) {
                 throw new Error(`Failed to fetch analysis for ${symbol}`);
             }
@@ -101,9 +104,10 @@ function AnalyticsContent() {
         }
     };
 
-    const fetchChartData = async (symbol: string) => {
+    const fetchChartData = async (symbol: string, forceRefresh = false) => {
         try {
-            const response = await fetch(`http://localhost:8000/api/historical/${symbol}`);
+            const url = `${API_BASE}/api/historical/${symbol}${forceRefresh ? '?refresh=true' : ''}`;
+            const response = await fetch(url);
             if (!response.ok) throw new Error('Failed to fetch chart data');
             const result = await response.json();
             setChartData(result.data);
@@ -114,7 +118,7 @@ function AnalyticsContent() {
 
     const fetchFinancials = async (symbol: string) => {
         try {
-            const response = await fetch(`http://localhost:8000/api/financials/${symbol}`);
+            const response = await fetch(`${API_BASE}/api/financials/${symbol}`);
             if (!response.ok) throw new Error('Failed to fetch financials');
             const result = await response.json();
             setFinancialTrends(result.trends);
@@ -169,11 +173,11 @@ function AnalyticsContent() {
                     <p className="text-muted-foreground">{error || "Could not retrieve data for this ticker."}</p>
                 </div>
                 <button
-                    onClick={() => fetchData(ticker)}
+                    onClick={() => { fetchData(ticker, true); fetchChartData(ticker, true); }}
                     className="flex items-center space-x-2 px-6 py-2 bg-secondary rounded-xl font-bold hover:bg-secondary/80 transition-all"
                 >
                     <RefreshCcw size={18} />
-                    <span>Retry Analysis</span>
+                    <span>Retry with live data</span>
                 </button>
             </div>
         );
@@ -186,13 +190,23 @@ function AnalyticsContent() {
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-2">
-                    <button
-                        onClick={() => router.push('/')}
-                        className="flex items-center space-x-2 text-sm font-bold text-muted-foreground hover:text-primary transition-colors mb-2"
-                    >
-                        <ChevronLeft size={16} />
-                        <span>Dashboard</span>
-                    </button>
+                    <div className="flex items-center gap-2 mb-2">
+                        <button
+                            onClick={() => router.push('/')}
+                            className="flex items-center space-x-2 text-sm font-bold text-muted-foreground hover:text-primary transition-colors"
+                        >
+                            <ChevronLeft size={16} />
+                            <span>Dashboard</span>
+                        </button>
+                        <button
+                            onClick={() => { fetchData(ticker!, true); fetchChartData(ticker!, true); }}
+                            className="flex items-center space-x-2 text-sm font-bold text-muted-foreground hover:text-primary transition-colors px-2 py-1 rounded-lg hover:bg-secondary/50"
+                            title="Fetch latest prices"
+                        >
+                            <RefreshCcw size={14} />
+                            <span>Live data</span>
+                        </button>
+                    </div>
                     <div className="flex items-center space-x-4">
                         <div className="w-14 h-14 bg-primary text-primary-foreground flex items-center justify-center rounded-2xl text-2xl font-black shadow-lg">
                             {data.ticker[0]}
