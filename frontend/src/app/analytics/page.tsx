@@ -418,8 +418,8 @@ function AnalyticsContent() {
                                     <Tooltip
                                         cursor={{ fill: '#27272a', opacity: 0.4 }}
                                         contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '12px' }}
-                                        formatter={(value: any, name: string) => {
-                                            return [`${parseFloat(value).toFixed(2)}%`, name.toUpperCase()];
+                                        formatter={(value: any, name: any) => {
+                                            return [`${parseFloat(value).toFixed(2)}%`, String(name).toUpperCase()];
                                         }}
                                     />
                                     <Legend wrapperStyle={{ paddingTop: '20px', fontWeight: 'bold', fontSize: '10px', textTransform: 'uppercase' }} />

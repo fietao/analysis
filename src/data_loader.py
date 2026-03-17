@@ -1,42 +1,90 @@
-#data_loader.py
-import yfinance as yf #import information from yahoo finance
-from pathlib import Path #import information from path
+# data_loader.py
 import pandas as pd
+from pathlib import Path
+from datetime import datetime
+import requests
+
+# Try importing finnhub, but fallback gracefully
+try:
+    import finnhub
+    FINNHUB_AVAILABLE = True
+except ImportError:
+    FINNHUB_AVAILABLE = False
+    print("⚠️  finnhub-python not installed. Run: pip install finnhub-python")
+
+from src.config import FINNHUB_API_KEY, SEC_EDGAR_BASE_URL
+
+# Initialize Finnhub client
+finnhub_client = None
+if FINNHUB_AVAILABLE and FINNHUB_API_KEY:
+    try:
+        finnhub_client = finnhub.Client(api_key=FINNHUB_API_KEY)
+    except Exception as e:
+        print(f"Error initializing Finnhub: {e}")
 
 def download_stock_data(ticker, start_date, end_date):
-    df = yf.download(ticker, start=start_date, end=end_date, progress=False)
-    if df.empty:
-        print(f"No data found for {ticker}")
+    """
+    Fetches historical stock data from Finnhub.
+    Returns DataFrame with OHLCV data.
+    """
+    if not finnhub_client:
+        print(f"❌ Error: Finnhub not configured. Check FINNHUB_API_KEY environment variable.")
         return None
-    # make the columns into one level
-    # Fix MultiIndex columns properly
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
-    df = df.reset_index()
-    df = df[["Date", "Open", "High", "Low", "Close", "Volume"]]
-    df["ticker"] = ticker
-    return df
+    
+    try:
+        # Convert date strings to Unix timestamps
+        start_ts = int(pd.Timestamp(start_date).timestamp())
+        end_ts = int(pd.Timestamp(end_date or datetime.now()).timestamp())
+        
+        # Fetch from Finnhub
+        candles = finnhub_client.stock_candles(ticker, 'D', start_ts, end_ts)
+        
+        if not candles or 'o' not in candles:
+            print(f"No data found for {ticker}")
+            return None
+        
+        # Convert to DataFrame
+        df = pd.DataFrame({
+            'Date': pd.to_datetime(candles['t'], unit='s'),
+            'Open': candles['o'],
+            'High': candles['h'],
+            'Low': candles['l'],
+            'Close': candles['c'],
+            'Volume': candles['v']
+        })
+        
+        df['ticker'] = ticker.upper()
+        df = df.sort_values('Date').reset_index(drop=True)
+        return df
+        
+    except Exception as e:
+        print(f"Error fetching data for {ticker}: {e}")
+        return None
 
 def get_stock_info(ticker):
     """
-    Fetches basic info and fundamentals for a ticker using yfinance.
+    Fetches basic info and fundamentals for a ticker using Finnhub.
     """
+    if not finnhub_client:
+        print(f"❌ Error: Finnhub not configured.")
+        return None
+    
     try:
-        t = yf.Ticker(ticker)
-        info = t.info
-        dividend_yield = info.get("dividendYield")
-        if dividend_yield is not None:
-            dividend_yield = dividend_yield / 100.0
-            
+        # Get company profile
+        profile = finnhub_client.company_profile2(symbol=ticker)
+        
+        # Get basic financials
+        financials = finnhub_client.company_basic_financials(ticker, 'annual')
+        
         return {
-            "name": info.get("longName"),
-            "market_cap": info.get("marketCap"),
-            "forward_pe": info.get("forwardPE"),
-            "dividend_yield": dividend_yield,
-            "profit_margins": info.get("profitMargins"),
-            "revenue_growth": info.get("revenueGrowth"),
-            "debt_to_equity": info.get("debtToEquity"),
-            "return_on_equity": info.get("returnOnEquity")
+            "name": profile.get('name'),
+            "market_cap": profile.get('marketCapitalization', 0) * 1e6 if profile.get('marketCapitalization') else None,
+            "forward_pe": financials.get('metric', {}).get('peForward'),
+            "dividend_yield": financials.get('metric', {}).get('dividendYield'),
+            "profit_margins": financials.get('metric', {}).get('netMarginMRQ'),
+            "revenue_growth": financials.get('metric', {}).get('revenueGrowthYoY'),
+            "debt_to_equity": financials.get('metric', {}).get('debtToEquity'),
+            "return_on_equity": financials.get('metric', {}).get('roe')
         }
     except Exception as e:
         print(f"Error fetching info for {ticker}: {e}")
