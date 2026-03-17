@@ -6,3 +6,13 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .DS_Store
+
+# Environment files with secrets - NEVER commit these!
+.env
+.env.local
+.env.*.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
