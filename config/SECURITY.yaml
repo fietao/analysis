@@ -1,0 +1,376 @@
+# config/security.yaml
+# ============================================================================
+# JARVIS SECURITY CONFIGURATION
+# ============================================================================
+# This file documents all security settings for the application.
+# SENSITIVE VALUES: Store in .env file, NOT in this file.
+#
+# Last Updated: March 16, 2026
+# Status: Production-Ready Security Configuration
+
+# ============================================================================
+# 1. API SECURITY
+# ============================================================================
+api:
+  # ✅ Version: Use API versioning to prevent breaking changes
+  version: "v1"
+  
+  # ✅ HTTPS/TLS
+  tls:
+    enabled: true  # MUST be true in production
+    # Use Let's Encrypt (free) or purchase certificate
+    # Certificate: /etc/ssl/jarvis/cert.pem
+    # Private Key: /etc/ssl/jarvis/key.pem
+    # Chain: /etc/ssl/jarvis/chain.pem
+    min_version: "TLSv1.2"  # Minimum TLS version
+    ciphers:
+      - "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
+      - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+      - "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"
+      - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+
+  # ✅ HSTS (HTTP Strict Transport Security)
+  hsts:
+    max_age: 31536000  # 1 year
+    include_subdomains: true
+    preload: true
+
+  # ✅ CORS (Cross-Origin Resource Sharing)
+  cors:
+    allowed_origins:  # Set via CORS_ORIGINS env var
+      - "http://localhost:3000"    # Dev frontend
+      - "http://localhost:8000"    # Dev API
+      # Production URLs:
+      # - "https://yourdomain.com"
+      # - "https://www.yourdomain.com"
+    allow_credentials: true
+    allow_methods:
+      - "GET"
+      - "POST"
+      - "PUT"
+      - "DELETE"
+      - "OPTIONS"
+    allow_headers:
+      - "Content-Type"
+      - "Authorization"
+
+  # ✅ CSP (Content Security Policy)
+  csp:
+    default_src: "'self'"
+    script_src: "'self'"
+    style_src: "'self' 'unsafe-inline'"  # unsafe-inline needed for Tailwind
+    img_src: "'self' data: https:"
+    font_src: "'self' data:"
+
+# ============================================================================
+# 2. AUTHENTICATION & AUTHORIZATION
+# ============================================================================
+auth:
+  # ✅ JWT (JSON Web Tokens)
+  jwt:
+    algorithm: "HS256"
+    expiration_minutes: 1440  # 24 hours
+    refresh_expiration_days: 7
+    # SECRET_KEY: Set via SECRET_KEY env var (min 32 chars)
+    # Generate with: python -c "import secrets; print(secrets.token_urlsafe(32))"
+
+  # ✅ Session Management
+  session:
+    secure: true          # HTTPS only
+    httponly: true        # Prevent JS access
+    samesite: "strict"    # CSRF protection
+    max_age: 86400        # 24 hours
+
+  # ✅ Password Policy (for Phase 5+)
+  password:
+    min_length: 12
+    require_uppercase: true
+    require_lowercase: true
+    require_numbers: true
+    require_special: true
+    expiration_days: 90
+    history_count: 5  # Prevent reuse
+
+# ============================================================================
+# 3. RATE LIMITING
+# ============================================================================
+rate_limiting:
+  enabled: true
+
+  endpoints:
+    # GET endpoints: more permissive
+    get_analysis:
+      limit: 30
+      window: 60  # seconds
+
+    get_historical:
+      limit: 20
+      window: 60
+
+    get_stocks:
+      limit: 100
+      window: 60
+
+    # POST endpoints: stricter (longer operations)
+    post_screening_refresh:
+      limit: 1
+      window: 3600  # 1 hour - prevents DoS (2-3 min operation)
+
+    post_upload_filing:
+      limit: 5
+      window: 3600  # 5 files per hour
+
+    # Default
+    default:
+      limit: 100
+      window: 60
+
+  # Whitelist (bypass rate limiting)
+  whitelist:
+    # Monitoring/health checks
+    - "/api/health"
+    # Admin IPs (set via env var)
+    # RATE_LIMIT_WHITELIST_IPS=192.168.1.1,10.0.0.1
+
+# ============================================================================
+# 4. DATA PROTECTION
+# ============================================================================
+data_protection:
+  # ✅ Encryption at Rest
+  encryption:
+    enabled: true  # Phase 6+
+    algorithm: "AES-256-GCM"
+    # ENCRYPTION_KEY: Set via env var (must be 32 bytes for AES-256)
+
+  # ✅ CSV Injection Prevention
+  csv:
+    sanitize_dangerous_chars: true  # Prefixes '=', '+', '-', '@' with '
+    dangerous_chars:
+      - "="
+      - "+"
+      - "-"
+      - "@"
+      - "\t"  # Tab
+      - "\r"  # Carriage return
+
+  # ✅ PII (Personally Identifiable Information)
+  pii:
+    masking_enabled: true
+    # Masks in logs: API keys, tokens, file paths, IPs
+    fields_to_mask:
+      - "api_key"
+      - "token"
+      - "password"
+      - "secret"
+      - "api"
+      - "bearer"
+
+# ============================================================================
+# 5. FILE UPLOAD SECURITY
+# ============================================================================
+file_upload:
+  # ✅ Directory: Outside web root, with appropriate permissions
+  upload_dir: "input/filings"
+  max_file_size_mb: 50
+
+  # ✅ Allowed File Types
+  allowed_extensions:
+    - ".pdf"
+
+  # ✅ File Name Sanitization
+  sanitize_filename: true
+  max_filename_length: 255
+  allowed_filename_chars: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._- "
+
+  # ✅ Path Traversal Prevention
+  prevent_path_traversal: true
+  verify_within_directory: true
+
+# ============================================================================
+# 6. INPUT VALIDATION
+# ============================================================================
+input_validation:
+  # ✅ Ticker Validation
+  ticker:
+    max_length: 5
+    min_length: 1
+    allowed_pattern: "^[A-Z0-9-]+$"  # Alphanumeric + hyphen
+
+  # ✅ Date Validation
+  date:
+    format: "%Y-%m-%d"
+    max_date_range_days: 20 * 365  # 20 years of history
+    future_dates_allowed: false
+
+  # ✅ Pagination
+  pagination:
+    default_limit: 100
+    max_limit: 1000
+    default_offset: 0
+
+# ============================================================================
+# 7. LOGGING & MONITORING
+# ============================================================================
+logging:
+  # ✅ Secure Logging
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+  # ✅ Secret Masking
+  mask_secrets: true
+  mask_patterns:
+    - "api[_-]?key"
+    - "bearer"
+    - "token"
+    - "password"
+    - "secret"
+    - "Authorization"
+
+  # ✅ Log Rotation
+  rotation:
+    enabled: true
+    max_bytes: 10485760  # 10 MB
+    backup_count: 10
+
+  # ✅ Log Storage
+  location: "/var/log/jarvis/"
+  permissions: "0600"  # Owner read/write only
+
+  # ✅ Audit Logging (Phase 5+)
+  audit:
+    enabled: true
+    location: "/var/log/jarvis/audit/"
+    events:
+      - "user_login"
+      - "user_logout"
+      - "api_request"  # All requests
+      - "file_upload"
+      - "screening_refresh"
+      - "data_export"
+
+# ============================================================================
+# 8. DEPENDENCY MANAGEMENT
+# ============================================================================
+dependencies:
+  # ✅ Vulnerability Scanning
+  scan_on_startup: false  # Set true to check on every app start
+  scan_on_deploy: true    # Always scan before deployment
+  
+  # Tools: safety, pip-audit
+  tools:
+    - "pip-audit"
+    - "safety"
+
+  # Python version
+  python_version: ">=3.10"
+
+# ============================================================================
+# 9. EXTERNAL API SECURITY
+# ============================================================================
+external_apis:
+  # ✅ Finnhub
+  finnhub:
+    timeout_seconds: 30
+    retry_attempts: 3
+    retry_delay_seconds: 1
+    # API_KEY: Set via FINNHUB_API_KEY env var
+    rate_limit: null  # Managed by Finnhub
+
+  # ✅ SEC EDGAR
+  sec_edgar:
+    timeout_seconds: 30
+    retry_attempts: 3
+    base_url: "https://data.sec.gov/submissions"
+    # No API key required (free public API)
+
+# ============================================================================
+# 10. DEPLOYMENT SECURITY
+# ============================================================================
+deployment:
+  # ✅ Environment
+  environment: "development"  # development, staging, production
+  
+  # ✅ Debug Mode (MUST be false in production!)
+  debug: false
+
+  # ✅ Trusted Hosts
+  trusted_hosts:
+    - "localhost"
+    - "127.0.0.1"
+    # Production:
+    # - "yourdomain.com"
+    # - "www.yourdomain.com"
+
+  # ✅ SSL Verification
+  ssl_verify: true
+  ssl_certificate_path: "/etc/ssl/certs/ca-bundle.crt"
+
+  # ✅ Reverse Proxy
+  reverse_proxy:
+    enabled: false  # Set true if behind nginx/Apache
+    trusted_proxies:
+      - "X-Forwarded-For"
+      - "X-Forwarded-Proto"
+      - "X-Real-IP"
+
+# ============================================================================
+# 11. COMPLIANCE & LEGAL
+# ============================================================================
+compliance:
+  # ✅ Legal Documents
+  terms_of_service_required: true
+  privacy_policy_required: true
+  financial_disclaimer_required: true
+
+  # ✅ Data Retention
+  retention_days: 90  # Delete old logs after 90 days
+  user_data_retention_days: 365
+
+  # ✅ Standards
+  standards:
+    - "OWASP Top 10"
+    - "GDPR (Phase 5+)"
+    - "SOC 2 (Phase 6+)"
+    - "HIPAA (if applicable)"
+
+# ============================================================================
+# 12. INCIDENT RESPONSE
+# ============================================================================
+incident_response:
+  # ✅ Notification
+  security_email: "security@yourdomain.com"
+  alert_on_suspicious_activity: true
+
+  # ✅ Breach Notification
+  breach_notification_days: 72  # GDPR requirement
+
+  # ✅ Recovery
+  backup_enabled: true
+  backup_frequency: "daily"
+  backup_location: "/backups/jarvis/"
+  backup_retention_days: 30
+
+# ============================================================================
+# SECURITY CHECKLIST (Before Production)
+# ============================================================================
+pre_deployment_checklist:
+  - "[ ] All secrets in .env, not in code"
+  - "[ ] .env file in .gitignore"
+  - "[ ] SSL certificate installed & valid"
+  - "[ ] HSTS headers enabled"
+  - "[ ] CORS origins restricted (not wildcard)"
+  - "[ ] Rate limiting enabled & tested"
+  - "[ ] Database encryption enabled"
+  - "[ ] Logging & monitoring setup"
+  - "[ ] Backup & disaster recovery tested"
+  - "[ ] Security headers verified (CSP, X-Frame-Options, etc.)"
+  - "[ ] Input validation tested"
+  - "[ ] File upload validation tested"
+  - "[ ] Path traversal attempts tested"
+  - "[ ] SQL injection tests passed (if applicable)"
+  - "[ ] XSS tests passed"
+  - "[ ] CSRF tests passed"
+  - "[ ] Dependency vulnerabilities scanned"
+  - "[ ] Penetration testing completed (or planned)"
+  - "[ ] Incident response plan documented"
+  - "[ ] Legal documents (T of S, Privacy Policy) ready"

@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from src.security import sanitize_dataframe_for_csv
 
 def generate_screening_report(all_metrics, top_n=10):
     """
@@ -115,7 +116,8 @@ def generate_screening_report(all_metrics, top_n=10):
 
 def save_screening_results(all_metrics, filename="output/screening_results.csv"):
     """
-    Saves the combined metrics to a CSV for external analysis.
+    ✅ SECURE: Saves the combined metrics to a CSV for external analysis.
+    Prevents CSV injection (formula injection) attacks before saving.
     """
     if not all_metrics:
         return
@@ -123,5 +125,9 @@ def save_screening_results(all_metrics, filename="output/screening_results.csv")
     # Drop insights from CSV as it's a list and makes CSV messy
     if 'insights' in df.columns:
         df = df.drop(columns=['insights'])
+    
+    # ✅ SECURITY: Sanitize all string values to prevent CSV injection
+    sanitize_dataframe_for_csv(df)
+    
     df.to_csv(filename, index=False)
     print(f"Full screening data saved to {filename}")

@@ -8,7 +8,7 @@ import {
     FileText,
     Settings,
     ShieldCheck,
-    Zap
+    RadioTower
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -23,10 +23,10 @@ const Sidebar = () => {
         <div className="w-64 bg-card border-r border-border h-screen flex flex-col p-6 space-y-8 sticky top-0">
             <div className="flex items-center space-x-3">
                 <div className="bg-primary p-2 rounded-lg">
-                    <Zap className="text-white w-6 h-6" />
+                    <RadioTower className="text-white w-6 h-6" />
                 </div>
-                <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-primary to-emerald-400 bg-clip-text text-transparent">
-                    JARVIS
+                <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-primary to-emerald-400 bg-clip-text text-transparent uppercase">
+                    BEACON
                 </span>
             </div>
 
