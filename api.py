@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, File, UploadFile, Query
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
+import os
 from pathlib import Path
 from datetime import datetime, timedelta
 from src.config import TICKERS, start_date, end_date, DEV_MODE, DEV_TICKERS_LIMIT
@@ -102,12 +103,18 @@ def normalize_screening_row(row: dict) -> dict:
         out["Max Drawdown"] = out["max_drawdown"]
     return out
 
-# Enable CORS for Next.js frontend
+# Allowed CORS origins - configure via environment variable
+ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:8000").split(",")
+if "CORS_ORIGINS" not in os.environ:
+    logger.info("CORS_ORIGINS not set. Using default (localhost only)")
+
+# Enable CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, replace with your frontend URL
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[origin.strip() for origin in ALLOWED_ORIGINS],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 @app.get("/api/stocks")
