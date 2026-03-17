@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, File, UploadFile, Query, Request
+from fastapi import FastAPI, HTTPException, File, UploadFile, Query, Request, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse, FileResponse
@@ -12,6 +12,18 @@ from src.analytics import analyze_stock_data
 from src.screening import generate_screening_report, save_screening_results
 from src.document_processor import process_filing
 from src.financials import get_historical_financials
+from src.models import (
+    UserCreate, UserLogin, Token, UserResponse, AchievementLog,
+    BadgeType, UserBadge, LeaderboardResponse, LeaderboardEntry,
+    AIRequest, AIResponse, AIConversation, AIMessage
+)
+from src.auth import (
+    create_access_token, create_refresh_token, verify_token, refresh_access_token,
+    hash_password, verify_password, validate_password_strength,
+    extract_user_id_from_token, extract_user_role_from_token,
+    ACCESS_TOKEN_EXPIRE_HOURS
+)
+from src.gamification import GamificationService, LeaderboardService, AchievementTracker
 import shutil
 import logging
 import re
@@ -764,6 +776,432 @@ async def upload_custom_data(ticker: str, file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"Unexpected error in upload_custom_data: {e}")
         raise HTTPException(status_code=500, detail="Upload failed")
+
+# ============================================================================
+# PHASE 5: AUTHENTICATION & USER MANAGEMENT
+# ============================================================================
+
+# In-memory user store (TODO: Replace with database in Phase 6)
+users_db = {}  # username -> user_info
+achievement_log = []  # List of achievements
+gamification_service = GamificationService()
+achievement_tracker = AchievementTracker()
+
+def get_current_user(authorization: str = Header(None)) -> dict:
+    """Dependency: Extract and validate current user from JWT token"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing authorization header")
+    
+    try:
+        scheme, token = authorization.split()
+        if scheme.lower() != "bearer":
+            raise HTTPException(status_code=401, detail="Invalid authorization scheme")
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid authorization header")
+    
+    is_valid, payload = verify_token(token)
+    if not is_valid or not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+    
+    # TODO: Lookup user from database
+    return {"user_id": user_id, "email": payload.get("email"), "role": payload.get("role")}
+
+@app.post("/api/auth/signup", response_model=Token)
+async def signup(user: UserCreate):
+    """
+    User registration endpoint
+    Creates new user account and returns JWT token
+    """
+    try:
+        # Validate password strength
+        is_strong, msg = validate_password_strength(user.password)
+        if not is_strong:
+            raise HTTPException(status_code=400, detail=msg)
+        
+        # Check if user exists
+        if any(u["email"] == user.email for u in users_db.values()):
+            raise HTTPException(status_code=409, detail="Email already registered")
+        
+        if any(u["username"] == user.username for u in users_db.values()):
+            raise HTTPException(status_code=409, detail="Username already taken")
+        
+        # Create user
+        user_id = len(users_db) + 1
+        hashed_pw = hash_password(user.password)
+        
+        users_db[user.email] = {
+            "id": user_id,
+            "email": user.email,
+            "username": user.username,
+            "full_name": user.full_name,
+            "hashed_password": hashed_pw,
+            "role": "free",
+            "tier": "free",
+            "points": 0,
+            "badges": [],
+            "created_at": datetime.utcnow(),
+            "login_streak": 0,
+            "last_login": None,
+            "is_active": True
+        }
+        
+        # Create tokens
+        access_token = create_access_token(user_id, user.email, "free")
+        refresh_token = create_refresh_token(user_id, user.email)
+        
+        logger.info(f"New user registered: {user.email}")
+        
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "expires_in": ACCESS_TOKEN_EXPIRE_HOURS * 3600
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Signup error: {sanitize_error_message(str(e))}")
+        raise HTTPException(status_code=500, detail="Signup failed")
+
+@app.post("/api/auth/login", response_model=Token)
+async def login(credentials: UserLogin):
+    """
+    User login endpoint
+    Authenticates user and returns JWT token
+    """
+    try:
+        user = users_db.get(credentials.email)
+        if not user or not verify_password(credentials.password, user["hashed_password"]):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+        if not user["is_active"]:
+            raise HTTPException(status_code=403, detail="Account is disabled")
+        
+        # Update last login
+        user["last_login"] = datetime.utcnow()
+        
+        # Award daily login points
+        points = gamification_service.calculate_daily_bonus(user["login_streak"], True)
+        user["points"] += points
+        
+        # Create tokens
+        access_token = create_access_token(user["id"], user["email"], user["role"])
+        refresh_token = create_refresh_token(user["id"], user["email"])
+        
+        logger.info(f"User logged in: {credentials.email}")
+        
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "expires_in": ACCESS_TOKEN_EXPIRE_HOURS * 3600
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login error: {sanitize_error_message(str(e))}")
+        raise HTTPException(status_code=500, detail="Login failed")
+
+@app.post("/api/auth/refresh", response_model=Token)
+async def refresh_tokens(authorization: str = Header(None)):
+    """
+    Refresh JWT token
+    Uses refresh token to create new access token
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing authorization header")
+    
+    try:
+        scheme, token = authorization.split()
+        if scheme.lower() != "bearer":
+            raise HTTPException(status_code=401, detail="Invalid scheme")
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid header")
+    
+    tokens = refresh_access_token(token)
+    if not tokens:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+    
+    access_token, new_refresh = tokens
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": new_refresh,
+        "token_type": "bearer",
+        "expires_in": ACCESS_TOKEN_EXPIRE_HOURS * 3600
+    }
+
+@app.get("/api/users/me", response_model=UserResponse)
+async def get_current_user_profile(current_user: dict = Depends(get_current_user)):
+    """Get current user profile"""
+    try:
+        user = users_db.get(current_user["email"])
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return {
+            "id": user["id"],
+            "email": user["email"],
+            "username": user["username"],
+            "full_name": user["full_name"],
+            "role": user["role"],
+            "tier": user["tier"],
+            "created_at": user["created_at"],
+            "points": user["points"],
+            "badges_earned": len(user["badges"]),
+            "is_active": user["is_active"]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get profile error: {sanitize_error_message(str(e))}")
+        raise HTTPException(status_code=500, detail="Failed to get profile")
+
+# ============================================================================
+# PHASE 5: GAMIFICATION
+# ============================================================================
+
+@app.get("/api/gamification/badges")
+async def get_user_badges(current_user: dict = Depends(get_current_user)):
+    """Get user's earned badges"""
+    try:
+        user = users_db.get(current_user["email"])
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        badges = []
+        for badge_type in user["badges"]:
+            badge_def = gamification_service.badges.get(badge_type)
+            badges.append({
+                "type": badge_type,
+                "name": badge_def["name"],
+                "description": badge_def["description"],
+                "icon": badge_def["icon"],
+                "points": badge_def["points"]
+            })
+        
+        return {"badges": badges, "total": len(badges)}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get badges error: {sanitize_error_message(str(e))}")
+        raise HTTPException(status_code=500, detail="Failed to get badges")
+
+@app.get("/api/gamification/achievements")
+async def log_action(
+    action: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Log user action and award points/badges"""
+    try:
+        user = users_db.get(current_user["email"])
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Calculate points
+        points = gamification_service.calculate_points_for_action(
+            action,
+            {"premium": user["role"] == "pro"}
+        )
+        
+        # Award points
+        user["points"] += points
+        
+        # Check for badges
+        badges_earned = achievement_tracker.process_badge_achievements(
+            user["id"], action, {
+                "login_streak": user["login_streak"],
+                "current_badges": user["badges"],
+                "leaderboard_rank": 1000  # TODO: Calculate from leaderboard
+            }
+        )
+        
+        # Award new badges
+        user["badges"].extend(badges_earned)
+        
+        # Log achievement
+        achievement_log.append({
+            "user_id": user["id"],
+            "action": action,
+            "points": points,
+            "timestamp": datetime.utcnow(),
+            "badges_earned": badges_earned
+        })
+        
+        logger.info(f"Achievement logged: {user['email']} - {action} (+{points} pts)")
+        
+        return {
+            "points_earned": points,
+            "total_points": user["points"],
+            "badges_earned": badges_earned,
+            "tier": gamification_service.get_tier_for_points(user["points"]),
+            "next_milestone": gamification_service.get_next_milestone(user["points"])
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Achievement error: {sanitize_error_message(str(e))}")
+        raise HTTPException(status_code=500, detail="Failed to log achievement")
+
+@app.get("/api/gamification/leaderboard")
+async def get_leaderboard(limit: int = Query(100, ge=1, le=1000)):
+    """Get global leaderboard"""
+    try:
+        # Build points list
+        user_points = [
+            (user["id"], user["points"], user["username"])
+            for user in users_db.values()
+        ]
+        
+        leaderboard = LeaderboardService.get_global_leaderboard(user_points, limit=limit)
+        
+        return {
+            "entries": leaderboard,
+            "total_users": len(users_db),
+            "generated_at": datetime.utcnow()
+        }
+    
+    except Exception as e:
+        logger.error(f"Leaderboard error: {sanitize_error_message(str(e))}")
+        raise HTTPException(status_code=500, detail="Failed to get leaderboard")
+
+@app.get("/api/gamification/leaderboard/me")
+async def get_user_leaderboard_position(current_user: dict = Depends(get_current_user)):
+    """Get user's rank and surrounding context on leaderboard"""
+    try:
+        user = users_db.get(current_user["email"])
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Build points list
+        all_points = [
+            (u["id"], u["points"])
+            for u in users_db.values()
+        ]
+        
+        rank_info = LeaderboardService.get_user_rank_context(
+            user["id"],
+            user["points"],
+            all_points
+        )
+        
+        return rank_info
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"User rank error: {sanitize_error_message(str(e))}")
+        raise HTTPException(status_code=500, detail="Failed to get rank")
+
+# ============================================================================
+# PHASE 5: AI ASSISTANT (BETA - Structure ready for GPT-4 integration)
+# ============================================================================
+
+conversations_db = {}  # conversation_id -> conversation
+
+@app.post("/api/ai/chat")
+async def ai_chat(request: AIRequest, current_user: dict = Depends(get_current_user)):
+    """
+    Chat with AI assistant
+    TODO: Integrate GPT-4 API in Phase 5
+    """
+    try:
+        user = users_db.get(current_user["email"])
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        conv_id = request.conversation_id or f"conv_{user['id']}_{datetime.utcnow().timestamp()}"
+        
+        # TODO: Call GPT-4 API here
+        # For now, return placeholder response
+        ai_response = f"[AI Assistant] I received your message: '{request.message}'. Full AI integration coming in Phase 5!"
+        
+        # Award points for using AI
+        user["points"] += gamification_service.calculate_points_for_action("ai_chat")
+        
+        return {
+            "conversation_id": conv_id,
+            "message": ai_response,
+            "confidence": 0.6,
+            "sources": [],
+            "timestamp": datetime.utcnow()
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"AI chat error: {sanitize_error_message(str(e))}")
+        raise HTTPException(status_code=500, detail="Failed to process message")
+
+# ============================================================================
+# PHASE 5: VIDEOS (Structure ready for YouTube integration)
+# ============================================================================
+
+@app.get("/api/videos")
+async def list_videos(category: str = Query(None), limit: int = Query(20)):
+    """
+    List available video content
+    TODO: Integrate YouTube API in Phase 5
+    """
+    try:
+        # Placeholder videos
+        videos = [
+            {
+                "video_id": "intro_1",
+                "title": "Getting Started with Stock Analysis",
+                "category": "tutorial",
+                "duration_seconds": 600,
+                "access_tier": "free",
+                "views": 1250
+            },
+            {
+                "video_id": "strategy_1",
+                "title": "Dividend Growth Strategy",
+                "category": "strategy",
+                "duration_seconds": 1200,
+                "access_tier": "pro",
+                "views": 850
+            }
+        ]
+        
+        if category:
+            videos = [v for v in videos if v["category"] == category]
+        
+        return {"videos": videos[:limit], "total": len(videos)}
+    
+    except Exception as e:
+        logger.error(f"Video list error: {sanitize_error_message(str(e))}")
+        raise HTTPException(status_code=500, detail="Failed to get videos")
+
+@app.post("/api/videos/{video_id}/watch")
+async def log_video_watch(video_id: str, current_user: dict = Depends(get_current_user)):
+    """Log video watch and award points"""
+    try:
+        user = users_db.get(current_user["email"])
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Award points for watching
+        user["points"] += gamification_service.calculate_points_for_action("video_watched")
+        
+        return {
+            "message": "Video watch logged",
+            "points_earned": gamification_service.calculate_points_for_action("video_watched")
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Video watch error: {sanitize_error_message(str(e))}")
+        raise HTTPException(status_code=500, detail="Failed to log video watch")
 
 if __name__ == "__main__":
     import uvicorn
