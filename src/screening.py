@@ -62,12 +62,14 @@ def generate_screening_report(all_metrics, top_n=10):
 
     # 3. Best Value/Momentum (Return / Volatility "Sharpe-like" ratio)
     if return_col in df_display.columns and vol_col in df_display.columns:
-        df_display['return_per_risk'] = df_display[return_col] / (df_display[vol_col].replace(0, np.nan))
+        # Safe division: replace zero volatility with NaN to avoid division errors
+        volatility_safe = df_display[vol_col].replace(0, np.nan)
+        df_display['return_per_risk'] = df_display[return_col] / volatility_safe
         report.append(f"\nTOP {top_n} BY RETURN-TO-RISK RATIO:")
         top_ratio = df_display.sort_values(by='return_per_risk', ascending=False, na_position='last').head(top_n)
         for _, row in top_ratio.iterrows():
             val = row['return_per_risk']
-            if pd.notna(val):
+            if pd.notna(val) and not np.isinf(val):  # Check for both NaN and infinity
                 report.append(f"  {row['ticker']:<10}: {val:.2f}")
 
     # 4. Dividends (Highest Yield)

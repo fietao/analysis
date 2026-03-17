@@ -19,7 +19,9 @@ def main():
     tickers_to_run = TICKERS
     if DEV_MODE:
         tickers_to_run = TICKERS[:DEV_TICKERS_LIMIT]
-        print(f"Running in dev mode with {len(tickers_to_run)} tickers")
+        print(f"[DEV_MODE] Processing {len(tickers_to_run)}/{len(TICKERS)} tickers")
+    else:
+        print(f"[PRODUCTION] Processing all {len(TICKERS)} tickers")
         
     Path("ticker_data").mkdir(exist_ok=True)
     Path("output/charts").mkdir(parents=True, exist_ok=True)

@@ -58,6 +58,7 @@ def calculate_volatility(df):
     """
     Calculates annualized volatility (standard deviation of daily returns).
     Assumes 252 trading days in a year.
+    Returns None if insufficient data (< 5 data points) or if std dev is 0.
     """
     if df is None or len(df) < 5:
         return None
@@ -65,11 +66,18 @@ def calculate_volatility(df):
     # Calculate daily percentage change
     daily_returns = df['Close'].pct_change().dropna()
     
+    if len(daily_returns) < 2:
+        return None
+    
     # Standard deviation of daily returns * sqrt(252)
     daily_vol = daily_returns.std()
-    annualized_vol = daily_vol * np.sqrt(252)
     
-    return annualized_vol
+    # Handle zero volatility edge case
+    if daily_vol == 0 or pd.isna(daily_vol):
+        return 0.0
+    
+    annualized_vol = daily_vol * np.sqrt(252)
+    return float(annualized_vol)
 
 def calculate_max_drawdown(df):
     """
@@ -124,21 +132,33 @@ def calculate_returns(df):
     return metrics
 
 def get_moving_averages(df):
-    """Calculates 50 and 200 day moving averages."""
-    if df is None or len(df) < 200:
-        # Return what we can if 200 days aren't available
-        df = df.copy()
-        df['MA50'] = df['Close'].rolling(window=50).mean() if len(df) >= 50 else None
-        df['MA200'] = df['Close'].rolling(window=200).mean() if len(df) >= 200 else None
-    else:
-        df = df.copy()
-        df['MA50'] = df['Close'].rolling(window=50).mean()
-        df['MA200'] = df['Close'].rolling(window=200).mean()
+    """
+    Calculates 50 and 200 day moving averages.
+    Returns None if insufficient data for that MA, not NaN.
+    """
+    if df is None or len(df) < 5:
+        return {'MA50': None, 'MA200': None}
     
-    latest = df.iloc[-1]
+    df = df.copy()
+    
+    # Calculate MAs if we have enough data
+    if len(df) >= 50:
+        df['MA50'] = df['Close'].rolling(window=50).mean()
+        ma50 = df['MA50'].iloc[-1]
+        ma50 = None if pd.isna(ma50) else float(ma50)
+    else:
+        ma50 = None
+    
+    if len(df) >= 200:
+        df['MA200'] = df['Close'].rolling(window=200).mean()
+        ma200 = df['MA200'].iloc[-1]
+        ma200 = None if pd.isna(ma200) else float(ma200)
+    else:
+        ma200 = None
+    
     return {
-        'MA50': latest['MA50'],
-        'MA200': latest['MA200']
+        'MA50': ma50,
+        'MA200': ma200
     }
 
 def generate_insights(metrics, current_price):

@@ -50,4 +50,8 @@ DEV_MODE = os.getenv("DEV_MODE", "True").lower() == "true"
 DEV_TICKERS_LIMIT = int(os.getenv("DEV_TICKERS_LIMIT", "5"))
 
 if DEV_MODE:
-    print(f"🔧 DEV_MODE enabled: Only processing first {DEV_TICKERS_LIMIT} tickers")
+    print(f"[DEV_MODE] Only processing first {DEV_TICKERS_LIMIT} tickers")
+    print(f"   Production mode: export DEV_MODE=False && python main.py")
+else:
+    print(f"[PRODUCTION] Processing all {len(TICKERS)} tickers")
+    print(f"   Dev mode: export DEV_MODE=True")
