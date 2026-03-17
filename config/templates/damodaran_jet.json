@@ -1,0 +1,370 @@
+{
+  "template_id": "damodaran_jet",
+  "template_name": "Damodaran Value Analysis (Thai)",
+  "template_version": "1.0.0",
+  "author": "JET / Damodaran Framework",
+  "description": "Professional valuation report using Damodaran's intrinsic value methodology with Thai narrative",
+  "created_date": "2026-03-16",
+  "language": "th",
+  "output_format": ["json", "pdf", "html"],
+  "estimated_build_time_seconds": 45,
+  "is_public": true,
+  "tags": ["valuation", "fundamental", "thai", "professional"],
+  
+  "metadata": {
+    "template_id": "damodaran_jet",
+    "display_name": "Damodaran Value Analysis (Thai)",
+    "suitability": {
+      "asset_types": ["stock", "etf"],
+      "markets": ["us", "thai"],
+      "minimum_history_years": 5,
+      "requires_earnings_guidance": false,
+      "requires_consensus_estimates": true
+    },
+    "dependencies": {
+      "calculations": [
+        "wacc",
+        "fcff",
+        "roic",
+        "roe",
+        "dividend_discount_model",
+        "multiple_analysis",
+        "margin_of_safety"
+      ],
+      "data_sources": ["finnhub", "sec_edgar", "yahoo_finance"]
+    }
+  },
+  
+  "data_requirements": {
+    "price_data": {
+      "lookback_years": 10,
+      "frequency": "daily",
+      "fields": ["date", "close", "volume", "adjusted_close"],
+      "normalization": "split_adjusted"
+    },
+    
+    "fundamentals": {
+      "annual_income_statement": {
+        "fields": [
+          "revenue",
+          "operating_income",
+          "net_income",
+          "ebit",
+          "interest_expense",
+          "tax_expense"
+        ],
+        "years_required": 5
+      },
+      "annual_balance_sheet": {
+        "fields": [
+          "total_assets",
+          "total_liabilities",
+          "shareholders_equity",
+          "cash",
+          "debt",
+          "shares_outstanding"
+        ],
+        "years_required": 5
+      },
+      "annual_cash_flow": {
+        "fields": [
+          "operating_cash_flow",
+          "investing_cash_flow",
+          "free_cash_flow",
+          "capex"
+        ],
+        "years_required": 5
+      }
+    },
+    
+    "market_data": {
+      "risk_free_rate": {
+        "source": "us_10yr_treasury"
+      },
+      "market_risk_premium": {
+        "source": "damodaran_historical",
+        "value": 5.5
+      }
+    },
+    
+    "estimates": {
+      "consensus_estimates": {
+        "fields": ["eps_current_year", "eps_next_year", "revenue_growth"],
+        "source": "finnhub"
+      }
+    }
+  },
+  
+  "sections": [
+    {
+      "section_id": "decision_card",
+      "section_name": "การตัดสินใจ (Decision Card)",
+      "order": 1,
+      "display_type": "card",
+      "description": "Quick buy/hold/sell recommendation with valuation summary",
+      
+      "required_calculations": [
+        "intrinsic_value",
+        "current_price",
+        "margin_of_safety"
+      ],
+      
+      "display_fields": [
+        {
+          "field_name": "ticker",
+          "display_as": "text",
+          "label": "บริษัท (Stock)"
+        },
+        {
+          "field_name": "intrinsic_value",
+          "display_as": "currency_large",
+          "label": "มูลค่าที่แท้จริง (Intrinsic Value)",
+          "precision": 2
+        },
+        {
+          "field_name": "current_price",
+          "display_as": "currency_large",
+          "label": "ราคาตลาดปัจจุบัน (Current Price)",
+          "precision": 2
+        },
+        {
+          "field_name": "upside_downside",
+          "display_as": "percentage_colored",
+          "label": "ศักยภาพเพิ่มขึ้น/ลดลง (Upside/Downside)"
+        },
+        {
+          "field_name": "margin_of_safety",
+          "display_as": "percentage_colored",
+          "label": "ส่วนเสริมความปลอดภัย (Margin of Safety)"
+        },
+        {
+          "field_name": "recommendation",
+          "display_as": "badge",
+          "label": "คำแนะนำ (Recommendation)"
+        }
+      ],
+      
+      "chart_references": [
+        {
+          "chart_id": "valuation_comparison",
+          "metric": "intrinsic_value",
+          "chart_type": "waterfall"
+        }
+      ],
+      
+      "narrative_requirements": {
+        "must_include": [
+          "Why we think intrinsic value is X",
+          "What must be proven for this thesis to work",
+          "Key risks if price doesn't converge"
+        ],
+        "tone": "professional",
+        "language": "th",
+        "length_words": 150
+      }
+    },
+    
+    {
+      "section_id": "valuation_summary",
+      "section_name": "สรุปการประเมินมูลค่า (Valuation Summary)",
+      "order": 2,
+      "display_type": "table",
+      "description": "Detailed breakdown of valuation methods",
+      
+      "required_calculations": [
+        "dcf_intrinsic_value",
+        "comparable_company_valuation"
+      ],
+      
+      "display_fields": [
+        {
+          "field_name": "valuation_method",
+          "label": "วิธีการประเมิน (Method)"
+        },
+        {
+          "field_name": "implied_value",
+          "label": "มูลค่าโดยนัย (Implied Value)"
+        },
+        {
+          "field_name": "valuation_weight",
+          "label": "น้ำหนัก (Weight %)"
+        }
+      ],
+      
+      "narrative_requirements": {
+        "must_include": [
+          "Why we chose these specific valuation methods",
+          "Key assumptions in each method",
+          "Why we weight them this way"
+        ],
+        "length_words": 300
+      }
+    },
+    
+    {
+      "section_id": "financial_metrics",
+      "section_name": "ตัวชี้วัดทางการเงิน (Financial Metrics)",
+      "order": 3,
+      "display_type": "table",
+      "description": "Historical financial performance",
+      
+      "required_calculations": [
+        "roe",
+        "roic",
+        "profit_margin",
+        "revenue_growth"
+      ],
+      
+      "display_fields": [
+        {
+          "field_name": "year",
+          "label": "ปี (Year)"
+        },
+        {
+          "field_name": "revenue",
+          "label": "รายได้ (Revenue)"
+        },
+        {
+          "field_name": "roe",
+          "label": "ROE"
+        },
+        {
+          "field_name": "roic",
+          "label": "ROIC"
+        }
+      ]
+    },
+    
+    {
+      "section_id": "why_priced_that_way",
+      "section_name": "ทำไมตลาดจึงให้ราคาที่เป็นอย่างนี้ (Market Rationale)",
+      "order": 4,
+      "display_type": "text",
+      "description": "Narrative explaining current valuation",
+      
+      "narrative_requirements": {
+        "must_include": [
+          "Current P/E vs historical: why higher or lower?",
+          "Current P/E vs peers: is market pricing growth premium?",
+          "Market sentiment signals"
+        ],
+        "length_words": 400
+      }
+    },
+    
+    {
+      "section_id": "what_must_be_proven",
+      "section_name": "สิ่งที่ต้องพิสูจน์ (Bull & Bear Case)",
+      "order": 5,
+      "display_type": "comparison_cards",
+      "description": "Key assumptions that must hold for thesis to succeed",
+      
+      "bull_case": {
+        "title": "ข้อโต้แย้งแบบขาขึ้น (Bull Case)",
+        "narrative_requirements": {
+          "must_include": [
+            "3-5 reasons stock will outperform",
+            "Market expansion opportunities",
+            "Catalysts in next 12-24 months"
+          ],
+          "length_words": 250
+        }
+      },
+      
+      "bear_case": {
+        "title": "ข้อโต้แย้งแบบขาลง (Bear Case)",
+        "narrative_requirements": {
+          "must_include": [
+            "3-5 risks that could break the thesis",
+            "Competitive threats",
+            "Key metrics to watch (if these break, sell)"
+          ],
+          "length_words": 250
+        }
+      }
+    },
+    
+    {
+      "section_id": "appendix_detailed_metrics",
+      "section_name": "ภาคผนวก: รายละเอียดสูตร (Appendix)",
+      "order": 99,
+      "display_type": "table",
+      "description": "Transparency: all calculations with sources"
+    },
+    
+    {
+      "section_id": "sources_citations",
+      "section_name": "แหล่งข้อมูล (Sources & Citations)",
+      "order": 100,
+      "display_type": "list",
+      "description": "Every number traces back to a source"
+    }
+  ],
+  
+  "narrative_config": {
+    "language": "th",
+    "tone": "professional_analytical",
+    "generation_mode": "rule_based",
+    "rule_based_narratives": {
+      "decision_rationale": {
+        "if_mos_gt_30": "มูลค่าที่แท้จริงสูงกว่าราคาตลาดอย่างน้อย 30% เราจึงเห็นว่านี่เป็นโอกาสที่ดีมากในการลงทุน",
+        "if_mos_gt_0_lt_30": "หุ้นนี้มีมูลค่าที่แท้จริงสูงกว่าราคาตลาด จึงเหมาะสำหรับผู้ลงทุนที่มี long-term outlook",
+        "if_mos_lt_0": "ตามการวิเคราะห์ของเรา ราคาตลาดสูงกว่ามูลค่าที่แท้จริงในปัจจุบัน"
+      }
+    }
+  },
+  
+  "charts_config": {
+    "available_chart_types": [
+      "line_with_trend",
+      "waterfall",
+      "stacked_area",
+      "bar_comparison",
+      "scatter_vs_peers",
+      "heatmap_sensitivity"
+    ],
+    
+    "charts": [
+      {
+        "chart_id": "revenue_trend",
+        "metric": "revenue",
+        "label": "รายได้ประวัติศาสตร์ (Revenue Trend)",
+        "chart_type": "line_with_trend",
+        "data": {
+          "x_axis": "year",
+          "y_axis": "revenue",
+          "lookback_years": 10
+        }
+      },
+      {
+        "chart_id": "valuation_waterfall",
+        "metric": "intrinsic_value_components",
+        "label": "ประเมิน DCF Structure (DCF Build-up)",
+        "chart_type": "waterfall"
+      },
+      {
+        "chart_id": "sensitivity_dcf",
+        "metric": "dcf_sensitivity",
+        "label": "ความอ่อนไหว WACC vs Terminal Growth",
+        "chart_type": "heatmap_sensitivity"
+      }
+    ]
+  },
+  
+  "styling": {
+    "theme": "professional_dark",
+    "colors": {
+      "primary": "#1f77b4",
+      "positive": "#2ca02c",
+      "negative": "#d62728",
+      "neutral": "#7f7f7f"
+    },
+    "typography": {
+      "language": "th",
+      "font_thai": "Sarabun, Prompt",
+      "font_english": "Lato, Roboto",
+      "heading_size": 24,
+      "body_size": 12
+    }
+  }
+}
