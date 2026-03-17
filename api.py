@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, File, UploadFile, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, FileResponse
 import pandas as pd
 import os
 from pathlib import Path
@@ -10,7 +11,6 @@ from src.analytics import analyze_stock_data
 from src.screening import generate_screening_report, save_screening_results
 from src.document_processor import process_filing
 from src.financials import get_historical_financials
-from fastapi.responses import FileResponse
 import shutil
 import logging
 
@@ -117,11 +117,19 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
 )
 
+# Cache-Control helper
+def add_cache_control(response, max_age: int = 300):
+    """Add Cache-Control headers to improve browser and CDN caching."""
+    response.headers["Cache-Control"] = f"public, max-age={max_age}"
+    return response
+
 @app.get("/api/stocks")
 def get_all_tickers():
     """Returns the list of available NASDAQ 100 tickers."""
     try:
-        return {"tickers": TICKERS}
+        response_data = {"tickers": TICKERS}
+        # Cache ticker list for 24 hours (static data)
+        return JSONResponse(content=response_data, headers={"Cache-Control": "public, max-age=86400"})
     except Exception as e:
         logger.error(f"Error in get_all_tickers: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve ticker list")
@@ -162,7 +170,8 @@ def get_dashboard_stats():
             except Exception as e:
                 logger.warning(f"Error reading screening results: {e}")
                 stats["error"] = "Screening data is corrupted. Please refresh."
-        return stats
+        # Cache dashboard stats for 5 minutes
+        return JSONResponse(content=stats, headers={"Cache-Control": "public, max-age=300"})
     except Exception as e:
         logger.error(f"Error in get_dashboard_stats: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate dashboard stats")
@@ -322,7 +331,9 @@ def get_screening_data():
         
         df = df.where(pd.notnull(df), None)
         rows = [normalize_screening_row(r) for r in df.to_dict(orient="records")]
-        return {"results": rows}
+        response_data = {"results": rows}
+        # Cache screening results for 10 minutes (relatively static)
+        return JSONResponse(content=response_data, headers={"Cache-Control": "public, max-age=600"})
     except HTTPException:
         raise
     except Exception as e:
