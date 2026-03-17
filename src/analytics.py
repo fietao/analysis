@@ -2,6 +2,49 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
+def normalize_metrics(metrics: dict) -> dict:
+    """
+    Normalizes backend Column names to frontend-friendly names.
+    Maps internal column names to user-facing format for consistency across API/UI.
+    
+    Examples:
+        1Y_total_return -> 1Y Return
+        volatility -> Volatility  
+        max_drawdown -> Max Drawdown
+    """
+    normalized = dict(metrics)
+    
+    # Return mappings
+    if "1Y_total_return" in normalized:
+        normalized["1Y Return"] = normalized.pop("1Y_total_return")
+    if "3Y_total_return" in normalized:
+        normalized["3Y Return"] = normalized.pop("3Y_total_return")
+    if "5Y_total_return" in normalized:
+        normalized["5Y Return"] = normalized.pop("5Y_total_return")
+        
+    if "1Y_annualized_return" in normalized:
+        normalized["1Y Annualized Return"] = normalized.pop("1Y_annualized_return")
+    if "3Y_annualized_return" in normalized:
+        normalized["3Y Annualized Return"] = normalized.pop("3Y_annualized_return")
+    if "5Y_annualized_return" in normalized:
+        normalized["5Y Annualized Return"] = normalized.pop("5Y_annualized_return")
+        
+    # Risk metrics
+    if "volatility" in normalized:
+        normalized["Volatility"] = normalized.pop("volatility")
+    if "max_drawdown" in normalized:
+        normalized["Max Drawdown"] = normalized.pop("max_drawdown")
+        
+    # Dividend and profitability
+    if "dividend_yield" in normalized:
+        normalized["Dividend Yield"] = normalized.pop("dividend_yield")
+    if "profit_margins" in normalized:
+        normalized["Profit Margin"] = normalized.pop("profit_margins")
+    if "revenue_growth" in normalized:
+        normalized["Revenue Growth"] = normalized.pop("revenue_growth")
+        
+    return normalized
+
 def calculate_annualized_return(total_return, years):
     """
     Converts a cumulative return to an annualized return.
@@ -181,9 +224,11 @@ def analyze_stock_data(df):
         if ma_metrics:
             metrics.update(ma_metrics)
             
-        # Insights (Phase 3)
+        # Insights (Phase 3) - use raw metrics before normalization
         current_price = df['Close'].iloc[-1]
         metrics['insights'] = generate_insights(metrics, current_price)
-            
+    
+    # Normalize column names for consistent API/UI display
+    metrics = normalize_metrics(metrics)
     return metrics
 

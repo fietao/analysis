@@ -120,6 +120,7 @@ npm run dev
 ✅ Real-time & Historical
 💰 FREE tier: 60 API calls/minute
 📍 Get key: https://finnhub.io
+⚠️  NEVER commit API keys! Use .env file instead
 ```
 
 ### SEC EDGAR
